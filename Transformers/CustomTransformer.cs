@@ -3,13 +3,10 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
-using NHibernate.Linq;
-using NHibernate.Transform;
 
 namespace NHTransform.Transformers
 {
-    public class CustomTransformer<T> : IResultTransformer
+    public class CustomTransformer<T> : NHibernate.Transform.IResultTransformer
     {
         private readonly Func<T, object> _group;
         private readonly UniqueRelation _listRelations;
