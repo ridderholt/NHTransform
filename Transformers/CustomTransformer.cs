@@ -147,32 +147,6 @@ namespace NHTransform.Transformers
                 returnList.Add(original);
 
             }
-            //workList.GroupBy(_group).ForEach(x =>
-            //{
-            //    if (x.Count() == 1)
-            //    {
-            //        returnList.Add(x.First());
-            //        return;
-            //    }
-
-            //    var original = x.First();
-
-            //    foreach (var item in x)
-            //    {
-            //        foreach (var listRelation in _listRelations)
-            //        {
-            //            var value = listRelation.GetValue(item) as IList;
-            //            var orgList = listRelation.GetValue(original) as IList;
-
-            //            foreach (var o in value)
-            //            {
-            //                orgList.Add(o);
-            //            }
-            //        }
-            //    }
-
-            //    returnList.Add(original);
-            //});
 
             return returnList;
         }

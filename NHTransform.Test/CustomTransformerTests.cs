@@ -45,6 +45,27 @@ namespace NHTransform.Test
             actual.Address.Zipcode.Should().Be(expected.Address.Zipcode);
         }
 
+        [Fact]
+        public void Should_map_one_to_many_realtions()
+        {
+            var persons = new List<Person>
+            {
+                new Person{Firstname = "Robin", Lastname = "Ridderholt", Id = 1},
+                new Person{Firstname = "Micke", Lastname = "Larsson", Id = 2, Email = new List<Email>{new Email{Address = "micke@miklar.se"}}},
+                new Person{Firstname = "Micke", Lastname = "Larsson", Id = 2, Email = new List<Email>{new Email{Address = "mikael.larsson@laget.se"}}}
+            };
+
+            var transformer = new CustomTransformer<Person>(person => person.Id);
+
+            transformer.TransformTuple(new object[] {"Micke", "Larsson", 2, "micke@miklar.se"}, new[] {"Firstname", "Lastname", "Id", "Email.Address"});
+
+            var list = transformer.TransformList(persons) as List<Person>;
+
+            list.Should().HaveCount(2);
+            list.Single(x => x.Id == 2).Email.Should().HaveCount(2);
+            list.Single(x => x.Id == 1).Email.Should().BeNull();
+        }
+
         public static IEnumerable<object[]> BasicProperties
         {
             get
