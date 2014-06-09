@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using NHibernate.Linq;
 using NHibernate.Transform;
 
 namespace NHTransform.Transformers
@@ -11,15 +12,18 @@ namespace NHTransform.Transformers
     public class CustomTransformer<T> : IResultTransformer
     {
         private readonly Func<T, object> _group;
+        private readonly List<PropertyInfo> _listRelations;
 
         public CustomTransformer()
         {
             _group = null;
+            _listRelations = new List<PropertyInfo>();
         }
 
         public CustomTransformer(Func<T, object> groupBy)
         {
             _group = groupBy;
+            _listRelations = new List<PropertyInfo>();
         }
 
         public object TransformTuple(object[] tuple, string[] aliases)
@@ -54,6 +58,7 @@ namespace NHTransform.Transformers
 
                     if (IsList(property))
                     {
+                        _listRelations.Add(property);
                         var first = subType.GenericTypeArguments.First();
                         var listItem = CreateInstance(first);
                         var propertyInfo = listItem.GetType().GetProperty(subName.PropertyName);
@@ -108,29 +113,43 @@ namespace NHTransform.Transformers
             info.SetValue(target, value);
         }
 
-        public IList TransformList(IList list)
+        public IList TransformList(IList collection)
         {
-            //if (_group == null) return collection;
+            if (_group == null) return collection;
 
-            //var list = new List<T>();
-            //list.AddRange((IEnumerable<T>) collection);
+            var workList = new List<T>();
+            workList.AddRange(collection.Cast<T>());
+            var returnList = new List<T>();
 
-            //var groupBy = list.GroupBy(_group);
 
-            //return collection;
-            var result = (IList)Activator.CreateInstance(list.GetType());
-            var distinct = new HashSet<Identity>();
+            var dictionary = new Dictionary<object, List<T>>();
 
-            for (int i = 0; i < list.Count; i++)
+            workList.GroupBy(_group).ForEach(x =>
             {
-                object entity = list[i];
-                if (distinct.Add(new Identity(entity)))
+                if (x.Count() == 1)
                 {
-                    result.Add(entity);
+                    returnList.Add(x.First());
+                    return;
                 }
-            }
 
-            return result;
+                var original = x.First();
+
+                foreach (var item in x)
+                {
+                    var relations = new List<object>();
+                    foreach (var listRelation in _listRelations)
+                    {
+                        var value = listRelation.GetValue(item);
+                        
+                        relations.Add(value);
+                        listRelation.SetValue(original, relations);
+                    }
+                }
+
+                returnList.Add(original);
+            });
+
+            return returnList;
         }
 
         private T CreateInstance()
@@ -176,6 +195,11 @@ namespace NHTransform.Transformers
         public static CustomTransformer<T> For<T>()
         {
             return new CustomTransformer<T>();
+        }
+
+        public static CustomTransformer<T> For<T>(Func<T, object> groupBy)
+        {
+            return new CustomTransformer<T>(groupBy);
         }
     }
 }
