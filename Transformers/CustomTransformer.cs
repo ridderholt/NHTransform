@@ -12,18 +12,18 @@ namespace NHTransform.Transformers
     public class CustomTransformer<T> : IResultTransformer
     {
         private readonly Func<T, object> _group;
-        private readonly List<PropertyInfo> _listRelations;
+        private readonly UniqueRelation _listRelations;
 
         public CustomTransformer()
         {
             _group = null;
-            _listRelations = new List<PropertyInfo>();
+            _listRelations = new UniqueRelation();
         }
 
         public CustomTransformer(Func<T, object> groupBy)
         {
             _group = groupBy;
-            _listRelations = new List<PropertyInfo>();
+            _listRelations = new UniqueRelation();
         }
 
         public object TransformTuple(object[] tuple, string[] aliases)
@@ -121,33 +121,61 @@ namespace NHTransform.Transformers
             workList.AddRange(collection.Cast<T>());
             var returnList = new List<T>();
 
-
-            var dictionary = new Dictionary<object, List<T>>();
-
-            workList.GroupBy(_group).ForEach(x =>
+            foreach (var group in workList.GroupBy(_group))
             {
-                if (x.Count() == 1)
+                if (group.Count() == 1)
                 {
-                    returnList.Add(x.First());
-                    return;
+                    returnList.Add(group.First());
+                    continue;
                 }
 
-                var original = x.First();
+                var original = group.First();
 
-                foreach (var item in x)
+                var items = @group.Where(x => x.GetHashCode() != original.GetHashCode());
+
+                foreach (var item in items)
                 {
-                    var relations = new List<object>();
-                    foreach (var listRelation in _listRelations)
+                    foreach (var listRelation in _listRelations.Get())
                     {
-                        var value = listRelation.GetValue(item);
-                        
-                        relations.Add(value);
-                        listRelation.SetValue(original, relations);
+                        var value = listRelation.GetValue(item) as IList;
+                        var orgList = listRelation.GetValue(original) as IList;
+
+                        foreach (var o in value)
+                        {
+                            orgList.Add(o);
+                        }
                     }
                 }
 
                 returnList.Add(original);
-            });
+
+            }
+            //workList.GroupBy(_group).ForEach(x =>
+            //{
+            //    if (x.Count() == 1)
+            //    {
+            //        returnList.Add(x.First());
+            //        return;
+            //    }
+
+            //    var original = x.First();
+
+            //    foreach (var item in x)
+            //    {
+            //        foreach (var listRelation in _listRelations)
+            //        {
+            //            var value = listRelation.GetValue(item) as IList;
+            //            var orgList = listRelation.GetValue(original) as IList;
+
+            //            foreach (var o in value)
+            //            {
+            //                orgList.Add(o);
+            //            }
+            //        }
+            //    }
+
+            //    returnList.Add(original);
+            //});
 
             return returnList;
         }
@@ -156,31 +184,10 @@ namespace NHTransform.Transformers
         {
             return (T)Activator.CreateInstance(typeof(T));
         }
+
         private object CreateInstance(Type type)
         {
             return Activator.CreateInstance(type);
-        }
-
-
-        internal sealed class Identity
-        {
-            internal readonly object entity;
-
-            internal Identity(object entity)
-            {
-                this.entity = entity;
-            }
-
-            public override bool Equals(object other)
-            {
-                var that = (Identity)other;
-                return ReferenceEquals(entity, that.entity);
-            }
-
-            public override int GetHashCode()
-            {
-                return RuntimeHelpers.GetHashCode(entity);
-            }
         }
     }
 
@@ -188,6 +195,31 @@ namespace NHTransform.Transformers
     {
         public string PropertyType { get; set; }
         public string PropertyName { get; set; }
+    }
+
+    internal class UniqueRelation
+    {
+        private readonly List<PropertyInfo> _infos;
+        private readonly HashSet<string> _propertyNames;
+
+        public UniqueRelation()
+        {
+            _infos = new List<PropertyInfo>();
+            _propertyNames = new HashSet<string>();
+        }
+
+        public void Add(PropertyInfo propertyInfo)
+        {
+            if(_propertyNames.Contains(propertyInfo.Name)) return;
+
+            _propertyNames.Add(propertyInfo.Name);
+            _infos.Add(propertyInfo);
+        }
+
+        public List<PropertyInfo> Get()
+        {
+            return _infos;
+        }
     }
 
     public static class SQLTransformer
